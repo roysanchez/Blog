@@ -7,13 +7,20 @@ const controllers = require('./controllers');
 const middlewares = require('./middlewares');
 const RSSRouter = require('./RSSRouter');
 
+/**
+ * @description Collection Router for post resource.
+ *
+ * Fundamental router to define where resources live and how their url structure is.
+ */
 class CollectionRouter extends ParentRouter {
-    constructor(mainRoute, object) {
+    constructor(mainRoute, object, RESOURCE_CONFIG) {
         super('CollectionRouter');
+
+        this.RESOURCE_CONFIG = RESOURCE_CONFIG.QUERY.post;
 
         this.routerName = mainRoute === '/' ? 'index' : mainRoute.replace(/\//g, '');
 
-        // NOTE: index/parent route e.g. /, /podcast/, /magic/ ;)
+        // NOTE: this.route === index/parent route e.g. /, /podcast/, /magic/
         this.route = {
             value: mainRoute
         };
@@ -28,7 +35,7 @@ class CollectionRouter extends ParentRouter {
         // @NOTE: see helpers/templates - we use unshift to prepend the templates
         this.templates = (object.templates || []).reverse();
 
-        this.filter = object.filter || 'page:false';
+        this.filter = object.filter;
         this.data = object.data || {query: {}, router: {}};
         this.order = object.order;
         this.limit = object.limit;
@@ -53,6 +60,10 @@ class CollectionRouter extends ParentRouter {
         this._listeners();
     }
 
+    /**
+     * @description Register all routes of this router.
+     * @private
+     */
     _registerRoutes() {
         // REGISTER: context middleware for this collection
         this.router().use(this._prepareEntriesContext.bind(this));
@@ -66,12 +77,15 @@ class CollectionRouter extends ParentRouter {
 
         // REGISTER: is rss enabled?
         if (this.rss) {
-            this.rssRouter =  new RSSRouter();
+            this.rssRouter = new RSSRouter();
             this.mountRouter(this.route.value, this.rssRouter.router());
         }
 
         // REGISTER: context middleware for entries
         this.router().use(this._prepareEntryContext.bind(this));
+
+        // REGISTER: page/post resource redirects
+        this.router().param('slug', this._respectDominantRouter.bind(this));
 
         // REGISTER: permalinks e.g. /:slug/, /podcast/:slug
         this.mountRoute(this.permalinks.getValue({withUrlOptions: true}), controllers.entry);
@@ -80,10 +94,7 @@ class CollectionRouter extends ParentRouter {
     }
 
     /**
-     * We attach context information of the router to the request.
-     * By this we can e.g. access the router options in controllers.
-     *
-     * @TODO: Why do we need two context objects? O_O - refactor this out
+     * @description Prepare index context for further middlewares/controllers.
      */
     _prepareEntriesContext(req, res, next) {
         res.routerOptions = {
@@ -93,6 +104,7 @@ class CollectionRouter extends ParentRouter {
             order: this.order,
             permalinks: this.permalinks.getValue({withUrlOptions: true}),
             resourceType: this.getResourceType(),
+            query: this.RESOURCE_CONFIG,
             context: this.context,
             frontPageTemplate: 'home',
             templates: this.templates,
@@ -104,12 +116,19 @@ class CollectionRouter extends ParentRouter {
         next();
     }
 
+    /**
+     * @description Prepare entry context for further middlewares/controllers.
+     */
     _prepareEntryContext(req, res, next) {
         res.routerOptions.context = ['post'];
         res.routerOptions.type = 'entry';
         next();
     }
 
+    /**
+     * @description This router has listeners to react on changes which happen in Ghost.
+     * @private
+     */
     _listeners() {
         /**
          * CASE: timezone changes
@@ -122,9 +141,14 @@ class CollectionRouter extends ParentRouter {
         common.events.on('settings.active_timezone.edited', this._onTimezoneEditedListener);
     }
 
+    /**
+     * @description Helper function to handle a timezone change.
+     * @param settingModel
+     * @private
+     */
     _onTimezoneEdited(settingModel) {
         const newTimezone = settingModel.attributes.value,
-            previousTimezone = settingModel._updatedAttributes.value;
+            previousTimezone = settingModel._previousAttributes.value;
 
         if (newTimezone === previousTimezone) {
             return;
@@ -132,20 +156,37 @@ class CollectionRouter extends ParentRouter {
 
         if (this.getPermalinks().getValue().match(/:year|:month|:day/)) {
             debug('_onTimezoneEdited: trigger regeneration');
+
+            // @NOTE: The connected url generator will listen on this event and regenerate urls.
             this.emit('updated');
         }
     }
 
+    /**
+     * @description Get resource type of this router (always "posts")
+     * @returns {string}
+     */
     getResourceType() {
-        return 'posts';
+        // @TODO: resourceAlias can be removed? We removed it. Looks like a last left over. Needs double checking.
+        return this.RESOURCE_CONFIG.resourceAlias || this.RESOURCE_CONFIG.resource;
     }
 
+    /**
+     * @description Get index route e.g. /, /blog/
+     * @param {Object} options
+     * @returns {String}
+     */
     getRoute(options) {
         options = options || {};
 
         return urlService.utils.createUrl(this.route.value, options.absolute, options.secure);
     }
 
+    /**
+     * @description Generate rss url.
+     * @param {Object} options
+     * @returns {String}
+     */
     getRssUrl(options) {
         if (!this.rss) {
             return null;
