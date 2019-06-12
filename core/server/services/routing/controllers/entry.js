@@ -1,24 +1,25 @@
 const debug = require('ghost-ignition').debug('services:routing:controllers:entry'),
     url = require('url'),
     urlService = require('../../url'),
-    filters = require('../../../filters'),
     helpers = require('../helpers');
 
 /**
- * @TODO:
- *   - use `filter` for `findOne`?
- *   - always execute `next` until no router want's to serve and 404's
+ * @description Entry controller.
+ * @param {Object} req
+ * @param {Object} res
+ * @param {Function} next
+ * @returns {Promise}
  */
 module.exports = function entryController(req, res, next) {
     debug('entryController', res.routerOptions);
 
-    return helpers.postLookup(req.path, res.routerOptions)
+    return helpers.entryLookup(req.path, res.routerOptions, res.locals)
         .then(function then(lookup) {
             // Format data 1
-            const post = lookup ? lookup.post : false;
+            const entry = lookup ? lookup.entry : false;
 
-            if (!post) {
-                debug('no post');
+            if (!entry) {
+                debug('no entry');
                 return next();
             }
 
@@ -31,7 +32,9 @@ module.exports = function entryController(req, res, next) {
             // CASE: last param is of url is /edit, redirect to admin
             if (lookup.isEditURL) {
                 debug('redirect. is edit url');
-                return urlService.utils.redirectToAdmin(302, res, '/editor/' + post.id);
+                const resourceType = entry.page ? 'page' : 'post';
+
+                return urlService.utils.redirectToAdmin(302, res, `/editor/${resourceType}/${entry.id}`);
             }
 
             /**
@@ -50,7 +53,7 @@ module.exports = function entryController(req, res, next) {
              *
              * That's why we have to check against the router type.
              */
-            if (urlService.getResourceById(post.id).config.type !== res.routerOptions.resourceType) {
+            if (urlService.getResourceById(entry.id).config.type !== res.routerOptions.resourceType) {
                 debug('not my resource type');
                 return next();
             }
@@ -63,20 +66,27 @@ module.exports = function entryController(req, res, next) {
              * @NOTE:
              *
              * Ensure we redirect to the correct post url including subdirectory.
+             *
+             * @NOTE:
+             * Keep in mind, that the logic here is used for v0.1 and v2.
+             * v0.1 returns relative urls, v2 returns absolute urls.
+             *
+             * @TODO:
+             * Simplify if we drop v0.1.
              */
-            if (post.url !== req.path) {
+            if (urlService.utils.absoluteToRelative(entry.url, {withoutSubdirectory: true}) !== req.path) {
                 debug('redirect');
 
                 return urlService.utils.redirect301(res, url.format({
-                    pathname: urlService.utils.createUrl(post.url, false, false, true),
+                    pathname: url.parse(entry.url).pathname,
                     search: url.parse(req.originalUrl).search
                 }));
             }
 
-            helpers.secure(req, post);
+            helpers.secure(req, entry);
 
-            filters.doFilter('prePostsRender', post, res.locals)
-                .then(helpers.renderEntry(req, res));
+            const renderer = helpers.renderEntry(req, res);
+            return renderer(entry);
         })
         .catch(helpers.handleError(next));
 };
