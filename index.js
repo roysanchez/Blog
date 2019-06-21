@@ -5,6 +5,9 @@ var startTime = Date.now(),
     debug = require('ghost-ignition').debug('boot:index'),
     ghost, express, common, urlService, parentApp;
 
+const appInsights = require("applicationinsights");
+appInsights.start();
+
 debug('First requires...');
 
 ghost = require('./core');
