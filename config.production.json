@@ -3,6 +3,7 @@
         "client": "mysql",
         "connection": {
             "host": "localhost",
+            "port": 49798,
             "user": "azure",
             "database": "ghost"
         }
