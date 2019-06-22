@@ -15,5 +15,6 @@
 		"frontend": {
 			"maxAge": 600
 		}
-	}
+    },
+    "compress": false
 }
