@@ -95,8 +95,8 @@ IF /I "%IN_PLACE_DEPLOYMENT%" NEQ "1" (
 )
 
 echo creating directories
-mkdir content/adapters
-mkdir content/storage/adapters
+mkdir "content/adapters"
+mkdir "content/storage/adapters"
 
 :: 2. Select node version
 call :SelectNodeVersion
@@ -110,7 +110,7 @@ IF EXIST "%DEPLOYMENT_TARGET%\package.json" (
   echo installing azure storage
   call :ExecuteCmd !NPM_CMD! install ghost-storage-azure
   echo copying folder
-  xcopy /s /y node_modules/ghost-storage-azure content/adapters/storage/ghost-storage-azure
+   xcopy "node_modules\ghost-storage-azure\*" "content\adapters\storage\ghost-storage-azure" /s /i /y
 
   IF !ERRORLEVEL! NEQ 0 goto error
   popd
