@@ -108,7 +108,7 @@ IF EXIST "%DEPLOYMENT_TARGET%\package.json" (
   call :ExecuteCmd !NPM_CMD! install --production
 
   echo installing azure storage
-  call :ExecuteCmd !NPM_CMD! install ghost-storage-azure
+  call :ExecuteCmd !NPM_CMD! install https://github.com/roysanchez/ghost-azurestorage
   echo copying folder
    xcopy "node_modules\ghost-storage-azure\*" "content\adapters\storage\ghost-storage-azure" /s /i /y
 
