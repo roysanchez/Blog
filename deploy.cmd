@@ -94,6 +94,10 @@ IF /I "%IN_PLACE_DEPLOYMENT%" NEQ "1" (
   IF !ERRORLEVEL! NEQ 0 goto error
 )
 
+echo creating directories
+mkdir content/adapters
+mkdir content/storage/adapters
+
 :: 2. Select node version
 call :SelectNodeVersion
 
@@ -102,20 +106,15 @@ IF EXIST "%DEPLOYMENT_TARGET%\package.json" (
   pushd "%DEPLOYMENT_TARGET%"
   call :ExecuteCmd !NPM_CMD! config set scripts-prepend-node-path true
   call :ExecuteCmd !NPM_CMD! install --production
+
+  echo installing azure storage
+  call :ExecuteCmd !NPM_CMD! install ghost-storage-azure
+  echo copying folder
+  xcopy /s /y node_modules/ghost-storage-azure content/adapters/storage/ghost-storage-azure
+
   IF !ERRORLEVEL! NEQ 0 goto error
   popd
 )
-
-:: 4. Install npm packages
-pushd "%DEPLOYMENT_TARGET%"
-call :ExecuteCmd !NPM_CMD! config set scripts-prepend-node-path true
-call :ExecuteCmd !NPM_CMD! install ghost-storage-azure
-mkdir content/adapters
-mkdir content/storage/adapters
-xcopy /s /y node_modules/ghost-storage-azure content/adapters/storage/ghost-storage-azure
-
-IF !ERRORLEVEL! NEQ 0 goto error
-popd
 
 
 :: 6. Handle database creation and migrations.
