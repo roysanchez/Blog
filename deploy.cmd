@@ -106,7 +106,19 @@ IF EXIST "%DEPLOYMENT_TARGET%\package.json" (
   popd
 )
 
-:: 4. Handle database creation and migrations.
+:: 4. Install npm packages
+pushd "%DEPLOYMENT_TARGET%"
+call :ExecuteCmd !NPM_CMD! config set scripts-prepend-node-path true
+call :ExecuteCmd !NPM_CMD! install ghost-storage-azure
+mkdir content/adapters
+mkdir content/storage/adapters
+xcopy /s /y node_modules/ghost-storage-azure content/adapters/storage/ghost-storage-azure
+
+IF !ERRORLEVEL! NEQ 0 goto error
+popd
+
+
+:: 6. Handle database creation and migrations.
 IF EXIST "%DEPLOYMENT_TARGET%\db.js" (
   pushd "%DEPLOYMENT_TARGET%"
   call :ExecuteCmd "!NODE_EXE!" db.js
